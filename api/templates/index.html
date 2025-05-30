@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matching Engine - SPY & MSFT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .order-book-table th, .order-book-table td { @apply border px-4 py-2 text-sm; }
+        .trades-table th, .trades-table td { @apply border px-4 py-2 text-sm; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center">Matching Engine - SPY & MSFT</h1>
+        
+        <!-- Price Chart -->
+        <div class="mb-8 p-4 bg-white rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Price Chart</h2>
+            <div class="mb-4">
+                <select id="chart-instrument" class="p-2 border rounded" onchange="updateChart()">
+                    <option value="SPY">SPY</option>
+                    <option value="MSFT">MSFT</option>
+                </select>
+            </div>
+            <canvas id="priceChart" height="100"></canvas>
+        </div>
+
+        <!-- Order Submission Form -->
+        <div class="mb-8 p-4 bg-white rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Submit Order</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <select id="instrument" class="p-2 border rounded">
+                    <option value="SPY">SPY</option>
+                    <option value="MSFT">MSFT</option>
+                </select>
+                <select id="side" class="p-2 border rounded">
+                    <option value="BUY">Buy</option>
+                    <option value="SELL">Sell</option>
+                </select>
+                <input id="price" type="number" step="0.01" placeholder="Price" class="p-2 border rounded">
+                <input id="quantity" type="number" placeholder="Quantity" class="p-2 border rounded">
+                <button onclick="submitOrder()" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Submit Order</button>
+            </div>
+        </div>
+
+        <!-- Order Books and Trades -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- SPY Order Book -->
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">SPY Order Book</h2>
+                <div class="flex gap-4">
+                    <div class="w-1/2">
+                        <h3 class="font-medium">Buy Orders</h3>
+                        <table class="order-book-table w-full">
+                            <thead><tr><th>Price</th><th>Quantity</th><th>Order ID</th></tr></thead>
+                            <tbody id="spy-buy-orders"></tbody>
+                        </table>
+                    </div>
+                    <div class="w-1/2">
+                        <h3 class="font-medium">Sell Orders</h3>
+                        <table class="order-book-table w-full">
+                            <thead><tr><th>Price</th><th>Quantity</th><th>Order ID</th></tr></thead>
+                            <tbody id="spy-sell-orders"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MSFT Order Book -->
+            <div class="bg-white p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">MSFT Order Book</h2>
+                <div class="flex gap-4">
+                    <div class="w-1/2">
+                        <h3 class="font-medium">Buy Orders</h3>
+                        <table class="order-book-table w-full">
+                            <thead><tr><th>Price</th><th>Quantity</th><th>Order ID</th></tr></thead>
+                            <tbody id="msft-buy-orders"></tbody>
+                        </table>
+                    </div>
+                    <div class="w-1/2">
+                        <h3 class="font-medium">Sell Orders</h3>
+                        <table class="order-book-table w-full">
+                            <thead><tr><th>Price</th><th>Quantity</th><th>Order ID</th></tr></thead>
+                            <tbody id="msft-sell-orders"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trades -->
+        <div class="mt-8 bg-white p-4 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">Executed Trades</h2>
+            <table class="trades-table w-full">
+                <thead><tr><th>Instrument</th><th>Buy Order ID</th><th>Sell Order ID</th><th>Price</th><th>Quantity</th></tr></thead>
+                <tbody id="trades"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Chart.js
+        let priceChart;
+        const ctx = document.getElementById('priceChart').getContext('2d');
+
+        function initializeChart(labels, prices, instrument) {
+            if (priceChart) priceChart.destroy();
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${instrument} Price`,
+                        data: prices,
+                        borderColor: '#3b82f6', // Blue
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Time' } },
+                        y: { title: { display: true, text: 'Price (USD)' } }
+                    }
+                }
+            });
+        }
+
+        // Fetch and update chart
+        async function updateChart() {
+            const instrument = document.getElementById('chart-instrument').value;
+            try {
+                const response = await fetch(`/api/price_data/${instrument}`);
+                const data = await response.json();
+                if (data.status === 'success') {
+                    initializeChart(data.labels, data.prices, instrument);
+                } else {
+                    console.error('Error fetching price data:', data.message);
+                }
+            } catch (error) {
+                console.error('Error fetching price data:', error);
+            }
+        }
+
+        // Generate unique order ID
+        function generateOrderId() {
+            return 'ORDER_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Submit order to backend
+        async function submitOrder() {
+            const instrument = document.getElementById('instrument').value;
+            const side = document.getElementById('side').value;
+            const price = parseFloat(document.getElementById('price').value);
+            const quantity = parseInt(document.getElementById('quantity').value);
+            
+            if (!price || !quantity) {
+                alert('Please enter valid price and quantity');
+                return;
+            }
+
+            const order = {
+                order_id: generateOrderId(),
+                instrument: instrument,
+                side: side,
+                price: price,
+                quantity: quantity
+            };
+
+            try {
+                const response = await fetch('/api/add_order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(order)
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateOrderBooks();
+                    alert('Order submitted successfully!');
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error submitting order: ' + error.message);
+            }
+        }
+
+        // Fetch and update order books
+        async function updateOrderBooks() {
+            const instruments = ['SPY', 'MSFT'];
+            for (const instrument of instruments) {
+                try {
+                    const response = await fetch(`/api/order_book/${instrument}`);
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        updateOrderBookTable(instrument, data.order_book);
+                        updateTradesTable(data.order_book.trades);
+                    }
+                } catch (error) {
+                    console.error('Error fetching order book:', error);
+                }
+            }
+        }
+
+        // Update order book tables
+        function updateOrderBookTable(instrument, orderBook) {
+            const buyTable = document.getElementById(`${instrument.toLowerCase()}-buy-orders`);
+            const sellTable = document.getElementById(`${instrument.toLowerCase()}-sell-orders`);
+            
+            buyTable.innerHTML = '';
+            for (const [price, orders] of Object.entries(orderBook.buy_orders)) {
+                for (const order of orders) {
+                    const row = `<tr><td>${parseFloat(price).toFixed(2)}</td><td>${order.quantity}</td><td>${order.order_id}</td></tr>`;
+                    buyTable.innerHTML += row;
+                }
+            }
+
+            sellTable.innerHTML = '';
+            for (const [price, orders] of Object.entries(orderBook.sell_orders)) {
+                for (const order of orders) {
+                    const row = `<tr><td>${parseFloat(price).toFixed(2)}</td><td>${order.quantity}</td><td>${order.order_id}</td></tr>`;
+                    sellTable.innerHTML += row;
+                }
+            }
+        }
+
+        // Update trades table
+        function updateTradesTable(trades) {
+            const tradesTable = document.getElementById('trades');
+            tradesTable.innerHTML = '';
+            for (const trade of trades) {
+                const row = `<tr><td>${trade.instrument}</td><td>${trade.buy_order_id}</td><td>${trade.sell_order_id}</td><td>${trade.price.toFixed(2)}</td><td>${trade.quantity}</td></tr>`;
+                tradesTable.innerHTML += row;
+            }
+        }
+
+        // Initial load
+        updateOrderBooks();
+        updateChart();
+        setInterval(updateOrderBooks, 5000); // Update order books every 5 seconds
+    </script>
+</body>
+</html>
