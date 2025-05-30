@@ -1,5 +1,5 @@
 
-# Matching Engine for Algorithmic Trading
+# Order Book/Matching Engine for Algorithmic Trading
 
 ## Overview
 This project implements a matching engine for algorithmic trading, supporting buy and sell orders for multiple instruments (SPY and MSFT). Written in C++, it simulates an order book that matches orders based on price-time priority and generates realistic orders using provided 1-day price data from May 29, 2025. The engine processes orders, executes trades, and displays the order book state.
