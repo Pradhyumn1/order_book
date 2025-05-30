@@ -18,8 +18,7 @@ This project implements a matching engine for algorithmic trading, supporting bu
 
 ## Project Structure
 ```
-stocknprediction/
-└── matching_engine.cpp
+order_book/matching engine.cpp
 ```
 
 ## Setup Instructions
